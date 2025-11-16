@@ -1,1 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enzyme-Substrate Binding Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: white;
+            overflow: hidden;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #controls {
+            background: #2d3748;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        #controls h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .control-box {
+            background: #4a5568;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .control-box h3 {
+            font-size: 14px;
+            color: #cbd5e0;
+            margin-bottom: 10px;
+        }
+        
+        .stat {
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn-pause {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .btn-pause:hover {
+            background: #b91c1c;
+        }
+        
+        .btn-play {
+            background: #16a34a;
+            color: white;
+        }
+        
+        .btn-play:hover {
+            background: #15803d;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        
+        .temp-value {
+            font-size: 12px;
+            color: #cbd5e0;
+            margin-top: 5px;
+        }
+        
+        .legend {
+            background: #4a5568;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 13px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+        
+        .legend-color.cube {
+            border-radius: 2px;
+        }
+        
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <h1>Enzyme-Substrate Binding Simulation</h1>
+            
+            <div class="control-grid">
+                <div class="control-box">
+                    <h3>Statistics</h3>
+                    <div class="stat">Total Collisions: <span class="stat-value" id="collisions">0</span></div>
+                    <div class="stat">Successful Bindings: <span class="stat-value" id="bindings" style="color: #10b981;">0</span></div>
+                    <div class="stat">Products Formed: <span class="stat-value" id="products" style="color: #a855f7;">0</span></div>
+                </div>
+                
+                <div class="control-box">
+                    <h3>Controls</h3>
+                    <button id="toggleBtn" class="btn-pause">Pause Simulation</button>
+                </div>
+                
+                <div class="control-box">
+                    <h3>Temperature: <span id="tempValue">5</span>°C</h3>
+                    <input type="range" id="tempSlider" min="1" max="15" value="5">
+                    <div class="temp-value">Higher temperature = faster molecular motion</div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3b82f6;"></div>
+                    <span>Enzyme (with pink active site)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>Correct Substrate</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color cube" style="background: #ef4444;"></div>
+                    <span>Wrong Substrate</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fbbf24;"></div>
+                    <span>Bound Complex</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #a855f7;"></div>
+                    <span>Product</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="canvas-container"></div>
+    </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+        
+        const container = document.getElementById('canvas-container');
+        const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(0, 8, 20);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 0.8);
+        pointLight.position.set(10, 10, 10);
+        scene.add(pointLight);
+
+        // Container boundaries
+        const boundaryGeometry = new THREE.BoxGeometry(20, 15, 20);
+        const boundaryMaterial = new THREE.MeshBasicMaterial({
+            color: 0x4a5568,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const boundary = new THREE.Mesh(boundaryGeometry, boundaryMaterial);
+        scene.add(boundary);
+
+        // Physics world
+        const world = {
+            gravity: new THREE.Vector3(0, -0.3, 0),
+            damping: 0.98,
+            bounds: { x: 10, y: 7.5, z: 10 }
+        };
+
+        // Enzyme
+        const enzymeGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+        const enzymeMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x3b82f6,
+            shininess: 100
+        });
+        const enzyme = new THREE.Mesh(enzymeGeometry, enzymeMaterial);
+        enzyme.position.set(0, 0, 0);
+        scene.add(enzyme);
+
+        // Active site
+        const activeSiteGeometry = new THREE.SphereGeometry(0.6, 32, 32);
+        const activeSiteMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xff6b9d,
+            emissive: 0xff6b9d,
+            emissiveIntensity: 0.3
+        });
+        const activeSite = new THREE.Mesh(activeSiteGeometry, activeSiteMaterial);
+        activeSite.position.set(1.2, 0, 0);
+        enzyme.add(activeSite);
+
+        const enzymeBody = {
+            mesh: enzyme,
+            velocity: new THREE.Vector3(0, 0, 0),
+            mass: 10,
+            radius: 1.5,
+            isBound: false,
+            boundSubstrate: null
+        };
+
+        // Create substrates
+        const substrates = [];
+        const correctSubstrateCount = 5;
+        const incorrectSubstrateCount = 8;
+
+        // Correct substrates (green spheres)
+        for (let i = 0; i < correctSubstrateCount; i++) {
+            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const material = new THREE.MeshPhongMaterial({ color: 0x10b981 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            mesh.position.set(
+                (Math.random() - 0.5) * 18,
+                (Math.random() - 0.5) * 13,
+                (Math.random() - 0.5) * 18
+            );
+            
+            scene.add(mesh);
+            
+            substrates.push({
+                mesh,
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ),
+                mass: 1,
+                radius: 0.5,
+                isCorrect: true,
+                state: 'free'
+            });
+        }
+
+        // Incorrect substrates (red cubes)
+        for (let i = 0; i < incorrectSubstrateCount; i++) {
+            const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+            const material = new THREE.MeshPhongMaterial({ color: 0xef4444 });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            mesh.position.set(
+                (Math.random() - 0.5) * 18,
+                (Math.random() - 0.5) * 13,
+                (Math.random() - 0.5) * 18
+            );
+            
+            scene.add(mesh);
+            
+            substrates.push({
+                mesh,
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ),
+                mass: 1,
+                radius: 0.5,
+                isCorrect: false,
+                state: 'free'
+            });
+        }
+
+        // Statistics
+        let collisionCount = 0;
+        let successfulBindings = 0;
+        let productCount = 0;
+        let isRunning = true;
+        let temperature = 5;
+
+        // UI Elements
+        const collisionsEl = document.getElementById('collisions');
+        const bindingsEl = document.getElementById('bindings');
+        const productsEl = document.getElementById('products');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const tempSlider = document.getElementById('tempSlider');
+        const tempValue = document.getElementById('tempValue');
+
+        // Event listeners
+        toggleBtn.addEventListener('click', () => {
+            isRunning = !isRunning;
+            toggleBtn.textContent = isRunning ? 'Pause Simulation' : 'Resume Simulation';
+            toggleBtn.className = isRunning ? 'btn-pause' : 'btn-play';
+        });
+
+        tempSlider.addEventListener('input', (e) => {
+            temperature = parseInt(e.target.value);
+            tempValue.textContent = temperature;
+        });
+
+        // Physics functions
+        function applyThermalMotion(body, temp) {
+            if (body.state === 'free') {
+                const intensity = temp / 10;
+                body.velocity.add(new THREE.Vector3(
+                    (Math.random() - 0.5) * intensity,
+                    (Math.random() - 0.5) * intensity,
+                    (Math.random() - 0.5) * intensity
+                ));
+            }
+        }
+
+        function checkBoundaries(body) {
+            const pos = body.mesh.position;
+            const vel = body.velocity;
+
+            if (Math.abs(pos.x) > world.bounds.x - body.radius) {
+                vel.x *= -0.8;
+                pos.x = Math.sign(pos.x) * (world.bounds.x - body.radius);
+            }
+            if (Math.abs(pos.y) > world.bounds.y - body.radius) {
+                vel.y *= -0.8;
+                pos.y = Math.sign(pos.y) * (world.bounds.y - body.radius);
+            }
+            if (Math.abs(pos.z) > world.bounds.z - body.radius) {
+                vel.z *= -0.8;
+                pos.z = Math.sign(pos.z) * (world.bounds.z - body.radius);
+            }
+        }
+
+        function checkCollision(body1, body2) {
+            const distance = body1.mesh.position.distanceTo(body2.mesh.position);
+            return distance < (body1.radius + body2.radius);
+        }
+
+        function handleCollision(substrate) {
+            collisionCount++;
+            
+            if (substrate.isCorrect && !enzymeBody.isBound) {
+                successfulBindings++;
+                substrate.state = 'bound';
+                substrate.velocity.set(0, 0, 0);
+                enzymeBody.isBound = true;
+                enzymeBody.boundSubstrate = substrate;
+                
+                substrate.mesh.material.color.setHex(0xfbbf24);
+                activeSite.material.emissiveIntensity = 0.8;
+                
+                setTimeout(() => {
+                    if (substrate.state === 'bound') {
+                        convertToProduct(substrate);
+                    }
+                }, 2000);
+            } else {
+                const direction = new THREE.Vector3()
+                    .subVectors(substrate.mesh.position, enzyme.position)
+                    .normalize();
+                substrate.velocity.copy(direction.multiplyScalar(3));
+            }
+        }
+
+        function convertToProduct(substrate) {
+            substrate.state = 'product';
+            productCount++;
+            
+            substrate.mesh.material.color.setHex(0xa855f7);
+            
+            const releaseDirection = new THREE.Vector3(1, 0.5, 0).normalize();
+            substrate.velocity.copy(releaseDirection.multiplyScalar(4));
+            
+            enzymeBody.isBound = false;
+            enzymeBody.boundSubstrate = null;
+            activeSite.material.emissiveIntensity = 0.3;
+        }
+
+        // Animation loop
+        let frameCount = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            frameCount++;
+
+            if (isRunning) {
+                substrates.forEach(substrate => {
+                    if (substrate.state === 'free') {
+                        applyThermalMotion(substrate, temperature);
+                        substrate.velocity.add(world.gravity.clone().multiplyScalar(0.016));
+                        substrate.velocity.multiplyScalar(world.damping);
+                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(0.016));
+                        checkBoundaries(substrate);
+                        
+                        substrate.mesh.rotation.x += 0.01;
+                        substrate.mesh.rotation.y += 0.01;
+                        
+                        if (checkCollision(enzymeBody, substrate)) {
+                            handleCollision(substrate);
+                        }
+                    } else if (substrate.state === 'bound') {
+                        const bindPosition = enzyme.position.clone().add(new THREE.Vector3(1.8, 0, 0));
+                        substrate.mesh.position.copy(bindPosition);
+                    } else if (substrate.state === 'product') {
+                        substrate.velocity.multiplyScalar(0.99);
+                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(0.016));
+                        checkBoundaries(substrate);
+                        substrate.mesh.rotation.x += 0.02;
+                        substrate.mesh.rotation.y += 0.02;
+                    }
+                });
+
+                enzyme.rotation.y += 0.005;
+
+                // Update stats every 30 frames
+                if (frameCount % 30 === 0) {
+                    collisionsEl.textContent = collisionCount;
+                    bindingsEl.textContent = successfulBindings;
+                    productsEl.textContent = productCount;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+    </script>
+</body>
+</html>
