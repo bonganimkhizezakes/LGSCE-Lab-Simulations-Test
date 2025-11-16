@@ -135,6 +135,20 @@
             flex: 1;
             position: relative;
         }
+
+        .warning-extreme {
+            background: #dc2626 !important;
+            animation: pulse 1s infinite;
+        }
+
+        .warning-caution {
+            background: #f59e0b !important;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
@@ -147,7 +161,9 @@
                     <h3>Statistics</h3>
                     <div class="stat">Total Collisions: <span class="stat-value" id="collisions">0</span></div>
                     <div class="stat">Successful Bindings: <span class="stat-value" id="bindings" style="color: #10b981;">0</span></div>
+                    <div class="stat">Failed Bindings: <span class="stat-value" id="failedBindings" style="color: #ef4444;">0</span></div>
                     <div class="stat">Products Formed: <span class="stat-value" id="products" style="color: #a855f7;">0</span></div>
+                    <div class="stat">Denatured Enzymes: <span class="stat-value" id="denatured" style="color: #6b7280;">0</span></div>
                 </div>
 
                 <div class="control-box">
@@ -159,6 +175,12 @@
                     <h3>Temperature: <span id="tempValue">5</span>°C</h3>
                     <input type="range" id="tempSlider" min="1" max="50" value="5">
                     <div class="temp-value">Higher temperature = faster molecular motion</div>
+                </div>
+
+                <div class="control-box">
+                    <h3>pH Level: <span id="phValue">7.0</span> (<span id="phStatus">Neutral</span>)</h3>
+                    <input type="range" id="phSlider" min="0" max="14" step="0.5" value="7.0">
+                    <div class="temp-value">Optimal pH: 6.0 - 8.0</div>
                 </div>
 
                 <div class="control-box">
@@ -176,6 +198,10 @@
                 <div class="legend-item">
                     <div class="legend-color" style="background: #3b82f6;"></div>
                     <span>Enzyme (with pink active site)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #6b7280;"></div>
+                    <span>Denatured Enzyme</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #10b981;"></div>
@@ -303,7 +329,14 @@
                 mass: 10,
                 radius: 1.5,
                 isBound: false,
-                boundSubstrate: null
+                boundSubstrate: null,
+                // Phase 2: pH properties
+                optimalPH: 7.0,
+                phTolerance: 1.5,  // ±1.5 from optimal (6.0-8.0 range)
+                // Phase 2: Denaturation properties
+                denatured: false,
+                extremeConditionTimer: 0,
+                denaturationThreshold: 300  // 5 seconds at 60fps
             };
 
             return enzyme;
@@ -417,17 +450,25 @@
         // Statistics
         let collisionCount = 0;
         let successfulBindings = 0;
+        let failedBindings = 0;  // Phase 2: Track failed binding attempts
         let productCount = 0;
+        let denaturedCount = 0;  // Phase 2: Track denatured enzymes
         let isRunning = true;
         let temperature = 5;
+        let currentPH = 7.0;  // Phase 2: pH level
 
         // UI Elements
         const collisionsEl = document.getElementById('collisions');
         const bindingsEl = document.getElementById('bindings');
+        const failedBindingsEl = document.getElementById('failedBindings');
         const productsEl = document.getElementById('products');
+        const denaturedEl = document.getElementById('denatured');
         const toggleBtn = document.getElementById('toggleBtn');
         const tempSlider = document.getElementById('tempSlider');
         const tempValue = document.getElementById('tempValue');
+        const phSlider = document.getElementById('phSlider');
+        const phValue = document.getElementById('phValue');
+        const phStatus = document.getElementById('phStatus');
         const enzymeSlider = document.getElementById('enzymeSlider');
         const enzymeCountEl = document.getElementById('enzymeCount');
         const correctSlider = document.getElementById('correctSlider');
@@ -486,6 +527,24 @@
         tempSlider.addEventListener('input', (e) => {
             temperature = parseInt(e.target.value);
             tempValue.textContent = temperature;
+        });
+
+        // Phase 2: pH slider event listener
+        phSlider.addEventListener('input', (e) => {
+            currentPH = parseFloat(e.target.value);
+            phValue.textContent = currentPH.toFixed(1);
+
+            // Update pH status label and color
+            if (currentPH < 6.5) {
+                phStatus.textContent = 'Acidic';
+                phStatus.style.color = '#ff6b6b';
+            } else if (currentPH > 7.5) {
+                phStatus.textContent = 'Basic';
+                phStatus.style.color = '#a78bfa';
+            } else {
+                phStatus.textContent = 'Neutral';
+                phStatus.style.color = '#10b981';
+            }
         });
 
         enzymeSlider.addEventListener('input', (e) => {
@@ -614,25 +673,164 @@
             return distance < (body1.radius + body2.radius);
         }
 
+        // Phase 2: Calculate pH activity modifier for enzyme
+        // Returns a value between 0 (no activity) and 1 (full activity)
+        function getPHActivityModifier(enzyme, currentPH) {
+            if (enzyme.denatured) return 0; // Denatured enzymes don't work
+
+            const deviation = Math.abs(currentPH - enzyme.optimalPH);
+
+            if (deviation <= enzyme.phTolerance) {
+                // Within optimal range: 100% activity
+                return 1.0;
+            } else {
+                // Outside optimal: activity drops off
+                const excess = deviation - enzyme.phTolerance;
+                // Activity decreases by 30% for each pH unit beyond tolerance
+                const modifier = Math.max(0, 1.0 - (excess * 0.3));
+                return modifier;
+            }
+        }
+
+        // Phase 2: Check if enzyme should denature under extreme conditions
+        function checkDenaturationConditions(enzyme, temp, ph) {
+            if (enzyme.denatured) return; // Already denatured
+
+            const isExtremeTemp = temp > 45;
+            const isExtremePH = ph < 3.0 || ph > 11.0;
+
+            if (isExtremeTemp || isExtremePH) {
+                enzyme.extremeConditionTimer++;
+
+                if (enzyme.extremeConditionTimer >= enzyme.denaturationThreshold) {
+                    denatureEnzyme(enzyme);
+                }
+            } else {
+                // Reset timer if conditions return to normal before denaturation
+                enzyme.extremeConditionTimer = 0;
+            }
+        }
+
+        // Phase 2: Denature an enzyme (permanent, irreversible damage)
+        function denatureEnzyme(enzyme) {
+            enzyme.denatured = true;
+            denaturedCount++;
+
+            // Visual changes: turn gray
+            enzyme.mesh.material.color.setHex(0x6b7280); // Gray
+            enzyme.mesh.material.emissive = new THREE.Color(0x000000);
+
+            // Active site becomes dark/inactive
+            if (enzyme.activeSite) {
+                enzyme.activeSite.material.color.setHex(0x374151); // Dark gray
+                enzyme.activeSite.material.emissiveIntensity = 0;
+            }
+
+            // Release bound substrate if any
+            if (enzyme.isBound && enzyme.boundSubstrate) {
+                const substrate = enzyme.boundSubstrate;
+                substrate.state = 'free';
+                substrate.mesh.material.color.setHex(0x10b981); // Back to green
+                substrate.velocity.set(
+                    (Math.random() - 0.5) * 3,
+                    (Math.random() - 0.5) * 3,
+                    0
+                );
+                enzyme.isBound = false;
+                enzyme.boundSubstrate = null;
+            }
+
+            console.log('Enzyme denatured! Total denatured:', denaturedCount);
+        }
+
+        // Phase 2: Update enzyme appearance based on pH (visual feedback)
+        function updateEnzymeAppearance(enzyme, currentPH) {
+            if (enzyme.denatured) return; // Don't change denatured appearance
+
+            const baseColor = new THREE.Color(0x3b82f6); // Blue
+            const acidColor = new THREE.Color(0xff6b9d);  // Pink/red
+            const basicColor = new THREE.Color(0xa78bfa); // Purple
+
+            let targetColor;
+            if (currentPH < 6.5) {
+                // Acidic: blend toward red
+                const factor = (6.5 - currentPH) / 6.5;
+                targetColor = baseColor.clone().lerp(acidColor, factor * 0.5);
+            } else if (currentPH > 7.5) {
+                // Basic: blend toward purple
+                const factor = (currentPH - 7.5) / 6.5;
+                targetColor = baseColor.clone().lerp(basicColor, factor * 0.5);
+            } else {
+                // Neutral: normal blue
+                targetColor = baseColor;
+            }
+
+            enzyme.mesh.material.color.copy(targetColor);
+        }
+
+        // Phase 2: Update warning indicators based on extreme conditions
+        function updateWarningIndicators(temp, ph) {
+            const tempBox = tempSlider.closest('.control-box');
+            const phBox = phSlider.closest('.control-box');
+
+            // Temperature warnings
+            if (temp > 45) {
+                tempBox.classList.add('warning-extreme');
+                tempBox.classList.remove('warning-caution');
+            } else if (temp > 42) {
+                tempBox.classList.add('warning-caution');
+                tempBox.classList.remove('warning-extreme');
+            } else {
+                tempBox.classList.remove('warning-extreme', 'warning-caution');
+            }
+
+            // pH warnings
+            if (ph < 3 || ph > 11) {
+                phBox.classList.add('warning-extreme');
+                phBox.classList.remove('warning-caution');
+            } else if (ph < 4 || ph > 10) {
+                phBox.classList.add('warning-caution');
+                phBox.classList.remove('warning-extreme');
+            } else {
+                phBox.classList.remove('warning-extreme', 'warning-caution');
+            }
+        }
+
         function handleCollision(substrate, enzyme) {
             collisionCount++;
 
-            if (substrate.isCorrect && !enzyme.isBound) {
-                successfulBindings++;
-                substrate.state = 'bound';
-                substrate.velocity.set(0, 0, 0);
-                enzyme.isBound = true;
-                enzyme.boundSubstrate = substrate;
+            // Phase 2: Only bind if correct substrate, enzyme available, and NOT denatured
+            if (substrate.isCorrect && !enzyme.isBound && !enzyme.denatured) {
+                // Phase 2: Calculate pH-based binding probability
+                const phModifier = getPHActivityModifier(enzyme, currentPH);
 
-                substrate.mesh.material.color.setHex(0xfbbf24);
-                enzyme.activeSite.material.emissiveIntensity = 0.8;
+                // Random check: binding succeeds based on pH modifier (0-1)
+                if (Math.random() < phModifier) {
+                    // Successful binding
+                    successfulBindings++;
+                    substrate.state = 'bound';
+                    substrate.velocity.set(0, 0, 0);
+                    enzyme.isBound = true;
+                    enzyme.boundSubstrate = substrate;
 
-                setTimeout(() => {
-                    if (substrate.state === 'bound') {
-                        convertToProduct(substrate, enzyme);
-                    }
-                }, 2000);
+                    substrate.mesh.material.color.setHex(0xfbbf24);
+                    enzyme.activeSite.material.emissiveIntensity = 0.8;
+
+                    setTimeout(() => {
+                        if (substrate.state === 'bound') {
+                            convertToProduct(substrate, enzyme);
+                        }
+                    }, 2000);
+                } else {
+                    // Phase 2: Failed binding attempt due to unfavorable pH
+                    failedBindings++;
+                    const direction = new THREE.Vector3()
+                        .subVectors(substrate.mesh.position, enzyme.mesh.position)
+                        .normalize();
+                    substrate.velocity.copy(direction.multiplyScalar(3));
+                }
             } else {
+                // Wrong substrate, enzyme busy, or enzyme denatured
                 const direction = new THREE.Vector3()
                     .subVectors(substrate.mesh.position, enzyme.mesh.position)
                     .normalize();
@@ -663,6 +861,14 @@
             if (isRunning) {
                 // Update enzymes
                 enzymes.forEach(enzyme => {
+                    // Phase 2: Check denaturation conditions
+                    checkDenaturationConditions(enzyme, temperature, currentPH);
+
+                    // Phase 2: Update enzyme appearance based on pH (if not denatured)
+                    if (!enzyme.denatured) {
+                        updateEnzymeAppearance(enzyme, currentPH);
+                    }
+
                     if (!enzyme.isBound) {
                         // Apply thermal motion (enzymes move slower due to higher mass)
                         applyThermalMotion(enzyme, temperature);
@@ -686,8 +892,15 @@
                         enzyme.boundSubstrate.mesh.position.copy(bindPosition);
                     }
 
-                    // Rotation
-                    enzyme.mesh.rotation.y += 0.005;
+                    // Phase 2: Animation - denatured enzymes wobble erratically
+                    if (enzyme.denatured) {
+                        enzyme.mesh.rotation.x += (Math.random() - 0.5) * 0.1;
+                        enzyme.mesh.rotation.y += (Math.random() - 0.5) * 0.1;
+                        enzyme.mesh.rotation.z += (Math.random() - 0.5) * 0.1;
+                    } else {
+                        // Normal smooth rotation
+                        enzyme.mesh.rotation.y += 0.005;
+                    }
                 });
 
                 // Update substrates
@@ -725,8 +938,13 @@
                 if (frameCount % 30 === 0) {
                     collisionsEl.textContent = collisionCount;
                     bindingsEl.textContent = successfulBindings;
+                    failedBindingsEl.textContent = failedBindings;  // Phase 2
                     productsEl.textContent = productCount;
+                    denaturedEl.textContent = denaturedCount;  // Phase 2
                 }
+
+                // Phase 2: Update warning indicators
+                updateWarningIndicators(temperature, currentPH);
             }
 
             renderer.render(scene, camera);
