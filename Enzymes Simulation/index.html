@@ -89,9 +89,33 @@
             background: #16a34a;
             color: white;
         }
-        
+
         .btn-play:hover {
             background: #15803d;
+        }
+
+        .btn-reset {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-reset:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        .btn-reset:active {
+            transform: scale(0.98);
+            background: #b45309;
         }
         
         input[type="range"] {
@@ -167,8 +191,25 @@
                 </div>
 
                 <div class="control-box">
-                    <h3>Controls</h3>
+                    <h3>Simulation Controls</h3>
                     <button id="toggleBtn" class="btn-pause">Pause Simulation</button>
+                    <button id="resetBtn" class="btn-reset">Reset Simulation</button>
+                </div>
+
+                <div class="control-box">
+                    <h3>Simulation Speed: <span id="speedValue">1.0x</span></h3>
+                    <input type="range" id="speedSlider" min="0.1" max="5" step="0.1" value="1.0">
+                    <div class="temp-value">Slow down to observe details or speed up reactions</div>
+                </div>
+
+                <div class="control-box">
+                    <h3>View Controls</h3>
+                    <button id="resetCameraBtn" class="btn-reset">Reset Camera</button>
+                    <div class="temp-value" style="margin-top: 10px;">
+                        Left drag: Rotate<br>
+                        Right drag: Pan<br>
+                        Scroll: Zoom
+                    </div>
                 </div>
 
                 <div class="control-box">
@@ -226,6 +267,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         // Scene setup
         const scene = new THREE.Scene();
@@ -233,13 +275,45 @@
         
         const container = document.getElementById('canvas-container');
         const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+
+        // Phase 3: Store default camera position
+        const defaultCameraPosition = {
+            x: 0,
+            y: 5,
+            z: 25
+        };
+
+        const defaultCameraTarget = {
+            x: 0,
+            y: 0,
+            z: 0
+        };
+
         // Position camera for optimal 2D view (slightly angled from top)
-        camera.position.set(0, 5, 25);
-        camera.lookAt(0, 0, 0);
+        camera.position.set(defaultCameraPosition.x, defaultCameraPosition.y, defaultCameraPosition.z);
+        camera.lookAt(defaultCameraTarget.x, defaultCameraTarget.y, defaultCameraTarget.z);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
+
+        // Phase 3: Initialize OrbitControls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // Configure controls
+        controls.enableDamping = true;  // Smooth movement
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;  // Pan parallel to screen
+        controls.minDistance = 10;  // Can't zoom too close
+        controls.maxDistance = 50;  // Can't zoom too far
+        controls.maxPolarAngle = Math.PI / 2 + 0.5;  // Limit rotation below horizon
+        controls.target.set(defaultCameraTarget.x, defaultCameraTarget.y, defaultCameraTarget.z);
+
+        // Touch support
+        controls.touches = {
+            ONE: THREE.TOUCH.ROTATE,      // One finger: rotate
+            TWO: THREE.TOUCH.DOLLY_PAN    // Two fingers: zoom and pan
+        };
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -456,6 +530,7 @@
         let isRunning = true;
         let temperature = 5;
         let currentPH = 7.0;  // Phase 2: pH level
+        let simulationSpeed = 1.0;  // Phase 3: Simulation speed multiplier
 
         // UI Elements
         const collisionsEl = document.getElementById('collisions');
@@ -464,6 +539,8 @@
         const productsEl = document.getElementById('products');
         const denaturedEl = document.getElementById('denatured');
         const toggleBtn = document.getElementById('toggleBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
         const tempSlider = document.getElementById('tempSlider');
         const tempValue = document.getElementById('tempValue');
         const phSlider = document.getElementById('phSlider');
@@ -524,6 +601,12 @@
             toggleBtn.className = isRunning ? 'btn-pause' : 'btn-play';
         });
 
+        // Phase 3: Speed slider event listener
+        speedSlider.addEventListener('input', (e) => {
+            simulationSpeed = parseFloat(e.target.value);
+            speedValue.textContent = simulationSpeed.toFixed(1) + 'x';
+        });
+
         tempSlider.addEventListener('input', (e) => {
             temperature = parseInt(e.target.value);
             tempValue.textContent = temperature;
@@ -564,6 +647,127 @@
             wrongCountEl.textContent = targetCount;
             updateSubstrateCount(false, targetCount);
         });
+
+        // Phase 3: Reset button functionality
+        const resetBtn = document.getElementById('resetBtn');
+        resetBtn.addEventListener('click', () => {
+            // Visual feedback
+            resetBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                resetBtn.style.transform = 'scale(1)';
+            }, 100);
+
+            resetSimulation();
+        });
+
+        // Phase 3: Reset camera button functionality
+        const resetCameraBtn = document.getElementById('resetCameraBtn');
+        resetCameraBtn.addEventListener('click', resetCamera);
+
+        // Phase 3: Utility function to update statistics display
+        function updateStatistics() {
+            collisionsEl.textContent = collisionCount;
+            bindingsEl.textContent = successfulBindings;
+            failedBindingsEl.textContent = failedBindings;
+            productsEl.textContent = productCount;
+            denaturedEl.textContent = denaturedCount;
+        }
+
+        // Phase 3: Reset simulation function
+        function resetSimulation() {
+            // Reset statistics
+            collisionCount = 0;
+            successfulBindings = 0;
+            productCount = 0;
+            failedBindings = 0;
+            denaturedCount = 0;
+
+            // Reset enzymes
+            enzymes.forEach(enzyme => {
+                // Reset state
+                enzyme.isBound = false;
+                enzyme.boundSubstrate = null;
+
+                // Reset denaturation
+                enzyme.denatured = false;
+                enzyme.extremeConditionTimer = 0;
+
+                // Randomize position
+                enzyme.mesh.position.set(
+                    (Math.random() - 0.5) * 18,
+                    (Math.random() - 0.5) * 13,
+                    0
+                );
+
+                // Randomize velocity
+                enzyme.velocity.set(
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 0.5,
+                    0
+                );
+
+                // Reset appearance
+                enzyme.mesh.material.color.setHex(0x3b82f6);
+                enzyme.mesh.rotation.set(0, 0, 0);
+
+                const activeSite = enzyme.mesh.children[0];
+                if (activeSite) {
+                    activeSite.material.color.setHex(0xff6b9d);
+                    activeSite.material.emissiveIntensity = 0.3;
+                }
+            });
+
+            // Reset substrates
+            substrates.forEach(substrate => {
+                substrate.state = 'free';
+
+                // Original color
+                if (substrate.isCorrect) {
+                    substrate.mesh.material.color.setHex(0x10b981); // Green
+                } else {
+                    substrate.mesh.material.color.setHex(0xef4444); // Red
+                }
+
+                // Randomize position
+                substrate.mesh.position.set(
+                    (Math.random() - 0.5) * 18,
+                    (Math.random() - 0.5) * 13,
+                    0
+                );
+
+                // Randomize velocity
+                substrate.velocity.set(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    0
+                );
+
+                // Reset rotation
+                substrate.mesh.rotation.set(0, 0, 0);
+            });
+
+            // Update UI immediately
+            updateStatistics();
+
+            console.log('Simulation reset');
+        }
+
+        // Phase 3: Reset camera function
+        function resetCamera() {
+            camera.position.set(
+                defaultCameraPosition.x,
+                defaultCameraPosition.y,
+                defaultCameraPosition.z
+            );
+
+            controls.target.set(
+                defaultCameraTarget.x,
+                defaultCameraTarget.y,
+                defaultCameraTarget.z
+            );
+
+            controls.update();
+        }
 
         // Physics functions
         function applyThermalMotion(body, temp) {
@@ -700,7 +904,8 @@
             const isExtremePH = ph < 3.0 || ph > 11.0;
 
             if (isExtremeTemp || isExtremePH) {
-                enzyme.extremeConditionTimer++;
+                // Phase 3: Increment timer scaled by speed
+                enzyme.extremeConditionTimer += simulationSpeed;
 
                 if (enzyme.extremeConditionTimer >= enzyme.denaturationThreshold) {
                     denatureEnzyme(enzyme);
@@ -816,11 +1021,13 @@
                     substrate.mesh.material.color.setHex(0xfbbf24);
                     enzyme.activeSite.material.emissiveIntensity = 0.8;
 
+                    // Phase 3: Scale binding duration by simulation speed
+                    const bindingDuration = 2000 / simulationSpeed;
                     setTimeout(() => {
                         if (substrate.state === 'bound') {
                             convertToProduct(substrate, enzyme);
                         }
-                    }, 2000);
+                    }, bindingDuration);
                 } else {
                     // Phase 2: Failed binding attempt due to unfavorable pH
                     failedBindings++;
@@ -858,7 +1065,14 @@
             requestAnimationFrame(animate);
             frameCount++;
 
+            // Phase 3: Update orbit controls (always, even when paused)
+            controls.update();
+
             if (isRunning) {
+                // Phase 3: Define delta time based on speed
+                const baseDeltaTime = 0.016; // ~60 FPS
+                const deltaTime = baseDeltaTime * simulationSpeed;
+
                 // Update enzymes
                 enzymes.forEach(enzyme => {
                     // Phase 2: Check denaturation conditions
@@ -873,10 +1087,10 @@
                         // Apply thermal motion (enzymes move slower due to higher mass)
                         applyThermalMotion(enzyme, temperature);
 
-                        // Apply physics
-                        enzyme.velocity.add(world.gravity.clone().multiplyScalar(0.016));
+                        // Apply physics with delta time
+                        enzyme.velocity.add(world.gravity.clone().multiplyScalar(deltaTime));
                         enzyme.velocity.multiplyScalar(world.damping);
-                        enzyme.mesh.position.add(enzyme.velocity.clone().multiplyScalar(0.016));
+                        enzyme.mesh.position.add(enzyme.velocity.clone().multiplyScalar(deltaTime));
 
                         // Check membrane boundaries
                         checkMembraneBoundary(enzyme, membranePoints);
@@ -884,7 +1098,7 @@
                         // Bound complex moves together with reduced motion
                         applyThermalMotion(enzyme, temperature);
                         enzyme.velocity.multiplyScalar(0.95); // Extra damping when bound
-                        enzyme.mesh.position.add(enzyme.velocity.clone().multiplyScalar(0.016));
+                        enzyme.mesh.position.add(enzyme.velocity.clone().multiplyScalar(deltaTime));
                         checkMembraneBoundary(enzyme, membranePoints);
 
                         // Substrate follows enzyme
@@ -894,12 +1108,12 @@
 
                     // Phase 2: Animation - denatured enzymes wobble erratically
                     if (enzyme.denatured) {
-                        enzyme.mesh.rotation.x += (Math.random() - 0.5) * 0.1;
-                        enzyme.mesh.rotation.y += (Math.random() - 0.5) * 0.1;
-                        enzyme.mesh.rotation.z += (Math.random() - 0.5) * 0.1;
+                        enzyme.mesh.rotation.x += (Math.random() - 0.5) * 0.1 * simulationSpeed;
+                        enzyme.mesh.rotation.y += (Math.random() - 0.5) * 0.1 * simulationSpeed;
+                        enzyme.mesh.rotation.z += (Math.random() - 0.5) * 0.1 * simulationSpeed;
                     } else {
                         // Normal smooth rotation
-                        enzyme.mesh.rotation.y += 0.005;
+                        enzyme.mesh.rotation.y += 0.005 * simulationSpeed;
                     }
                 });
 
@@ -907,13 +1121,13 @@
                 substrates.forEach(substrate => {
                     if (substrate.state === 'free') {
                         applyThermalMotion(substrate, temperature);
-                        substrate.velocity.add(world.gravity.clone().multiplyScalar(0.016));
+                        substrate.velocity.add(world.gravity.clone().multiplyScalar(deltaTime));
                         substrate.velocity.multiplyScalar(world.damping);
-                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(0.016));
+                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(deltaTime));
                         checkMembraneBoundary(substrate, membranePoints);
 
-                        substrate.mesh.rotation.x += 0.01;
-                        substrate.mesh.rotation.y += 0.01;
+                        substrate.mesh.rotation.x += 0.01 * simulationSpeed;
+                        substrate.mesh.rotation.y += 0.01 * simulationSpeed;
 
                         // Check collision with all enzymes
                         enzymes.forEach(enzyme => {
@@ -927,20 +1141,16 @@
                         // Products continue moving
                         applyThermalMotion(substrate, temperature);
                         substrate.velocity.multiplyScalar(0.99);
-                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(0.016));
+                        substrate.mesh.position.add(substrate.velocity.clone().multiplyScalar(deltaTime));
                         checkMembraneBoundary(substrate, membranePoints);
-                        substrate.mesh.rotation.x += 0.02;
-                        substrate.mesh.rotation.y += 0.02;
+                        substrate.mesh.rotation.x += 0.02 * simulationSpeed;
+                        substrate.mesh.rotation.y += 0.02 * simulationSpeed;
                     }
                 });
 
                 // Update stats every 30 frames
                 if (frameCount % 30 === 0) {
-                    collisionsEl.textContent = collisionCount;
-                    bindingsEl.textContent = successfulBindings;
-                    failedBindingsEl.textContent = failedBindings;  // Phase 2
-                    productsEl.textContent = productCount;
-                    denaturedEl.textContent = denaturedCount;  // Phase 2
+                    updateStatistics();
                 }
 
                 // Phase 2: Update warning indicators
@@ -957,6 +1167,7 @@
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
+            controls.update();
         });
     </script>
 </body>
