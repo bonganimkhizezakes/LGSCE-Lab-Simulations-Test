@@ -173,6 +173,193 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
+
+        /* Phase 4: Scenario Presets CSS */
+        #scenarioSelect {
+            width: 100%;
+            padding: 10px;
+            background: #2d3748;
+            color: white;
+            border: 2px solid #4a5568;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        #scenarioSelect:hover {
+            border-color: #60a5fa;
+        }
+
+        .scenario-description {
+            margin-top: 10px;
+            padding: 10px;
+            background: #2d3748;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.5;
+            min-height: 40px;
+            color: #cbd5e0;
+        }
+
+        .scenario-locked {
+            border: 2px solid #fbbf24;
+            animation: lockPulse 2s infinite;
+        }
+
+        @keyframes lockPulse {
+            0%, 100% { border-color: #fbbf24; }
+            50% { border-color: #f59e0b; }
+        }
+
+        .learning-goals {
+            margin-top: 8px;
+            padding: 8px;
+            background: #1f2937;
+            border-left: 3px solid #60a5fa;
+            font-size: 12px;
+        }
+
+        /* Phase 4: Quiz Mode CSS */
+        .btn-quiz {
+            width: 100%;
+            padding: 12px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-quiz:hover {
+            background: #7c3aed;
+        }
+
+        .btn-quiz.active {
+            background: #10b981;
+        }
+
+        .quiz-score {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #2d3748;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: #60a5fa;
+            font-size: 20px;
+        }
+
+        #quizOptions {
+            margin: 20px 0;
+        }
+
+        .quiz-option {
+            display: block;
+            padding: 15px;
+            margin: 10px 0;
+            background: #4a5568;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .quiz-option:hover {
+            background: #5a6678;
+        }
+
+        .quiz-option.selected {
+            background: #3b82f6;
+            border-color: #60a5fa;
+        }
+
+        .quiz-option.correct {
+            background: #10b981;
+            border-color: #34d399;
+        }
+
+        .quiz-option.incorrect {
+            background: #dc2626;
+            border-color: #ef4444;
+        }
+
+        #quizFeedback {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+
+        #quizFeedback.correct {
+            background: #064e3b;
+            border: 2px solid #10b981;
+            color: #d1fae5;
+        }
+
+        #quizFeedback.incorrect {
+            background: #7f1d1d;
+            border: 2px solid #dc2626;
+            color: #fecaca;
+        }
+
+        .btn-submit, .btn-next {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-submit {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-submit:hover {
+            background: #2563eb;
+        }
+
+        .btn-next {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-next:hover {
+            background: #059669;
+        }
     </style>
 </head>
 <body>
@@ -233,6 +420,30 @@
                     <div class="stat">Wrong Substrates: <span class="stat-value" id="wrongCount">8</span></div>
                     <input type="range" id="wrongSlider" min="0" max="20" value="8">
                 </div>
+
+                <!-- Phase 4: Educational Scenarios -->
+                <div class="control-box">
+                    <h3>Educational Scenarios</h3>
+                    <select id="scenarioSelect">
+                        <option value="">-- Select a Scenario --</option>
+                        <option value="normal">Normal Conditions</option>
+                        <option value="highTemp">High Temperature Denaturation</option>
+                        <option value="extremePH">Extreme pH</option>
+                        <option value="optimal">Optimal Conditions</option>
+                        <option value="lowSubstrate">Low Substrate Concentration</option>
+                        <option value="competition">Substrate Competition</option>
+                    </select>
+                    <div id="scenarioDescription" class="scenario-description"></div>
+                </div>
+
+                <!-- Phase 4: Quiz Mode -->
+                <div class="control-box">
+                    <h3>Quiz Mode</h3>
+                    <button id="quizToggle" class="btn-quiz">Start Quiz Mode</button>
+                    <div id="quizScore" class="quiz-score" style="display: none;">
+                        Score: <span id="correctAnswers">0</span> / <span id="totalQuestions">0</span>
+                    </div>
+                </div>
             </div>
             
             <div class="legend">
@@ -264,6 +475,17 @@
         </div>
         
         <div id="canvas-container"></div>
+    </div>
+
+    <!-- Phase 4: Quiz Modal -->
+    <div id="quizModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2 id="quizQuestion"></h2>
+            <div id="quizOptions"></div>
+            <button id="submitAnswer" class="btn-submit">Submit Answer</button>
+            <div id="quizFeedback" style="display: none;"></div>
+            <button id="nextQuestion" class="btn-next" style="display: none;">Continue</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -646,6 +868,448 @@
             const targetCount = parseInt(e.target.value);
             wrongCountEl.textContent = targetCount;
             updateSubstrateCount(false, targetCount);
+        });
+
+        // Phase 4: Scenario Presets
+        const scenarios = {
+            normal: {
+                name: "Normal Conditions",
+                temperature: 25,
+                ph: 7.0,
+                enzymeCount: 1,
+                correctSubstrates: 5,
+                wrongSubstrates: 8,
+                description: "Observe normal enzyme-substrate interactions under optimal conditions. This represents typical cellular environment.",
+                learningGoals: ["Basic enzyme mechanism", "Substrate specificity", "Product formation"]
+            },
+            highTemp: {
+                name: "High Temperature Denaturation",
+                temperature: 48,
+                ph: 7.0,
+                enzymeCount: 2,
+                correctSubstrates: 10,
+                wrongSubstrates: 5,
+                description: "Watch enzymes denature from excessive heat over time. Notice color change and loss of function after ~5 seconds.",
+                learningGoals: ["Temperature denaturation", "Irreversible damage", "Protein structure importance"]
+            },
+            extremePH: {
+                name: "Extreme pH",
+                temperature: 25,
+                ph: 3.0,
+                enzymeCount: 2,
+                correctSubstrates: 10,
+                wrongSubstrates: 3,
+                description: "Observe how acidic conditions reduce binding success and eventually cause denaturation. Notice the failed binding attempts.",
+                learningGoals: ["pH effects on enzymes", "Binding success rate", "Chemical denaturation"]
+            },
+            optimal: {
+                name: "Optimal Conditions",
+                temperature: 30,
+                ph: 7.0,
+                enzymeCount: 5,
+                correctSubstrates: 15,
+                wrongSubstrates: 2,
+                description: "See maximum reaction rate with ideal conditions and high enzyme-substrate ratios. Products form rapidly.",
+                learningGoals: ["Optimal conditions", "High reaction rates", "Enzyme saturation"]
+            },
+            lowSubstrate: {
+                name: "Low Substrate Concentration",
+                temperature: 25,
+                ph: 7.0,
+                enzymeCount: 4,
+                correctSubstrates: 3,
+                wrongSubstrates: 0,
+                description: "Observe enzyme saturation - multiple enzymes compete for limited substrates. Most enzymes stay free.",
+                learningGoals: ["Substrate limitation", "Enzyme excess", "Concentration effects"]
+            },
+            competition: {
+                name: "Substrate Competition",
+                temperature: 25,
+                ph: 7.0,
+                enzymeCount: 1,
+                correctSubstrates: 6,
+                wrongSubstrates: 20,
+                description: "See how wrong substrates interfere with enzyme-substrate recognition. Notice frequent collisions but fewer successful bindings.",
+                learningGoals: ["Competitive inhibition", "Specificity importance", "Collision theory"]
+            }
+        };
+
+        let scenarioLocked = false;
+        let lockTimeout = null;
+
+        function loadScenario(scenarioKey) {
+            if (!scenarios[scenarioKey]) return;
+
+            const scenario = scenarios[scenarioKey];
+
+            // Update temperature slider
+            tempSlider.value = scenario.temperature;
+            temperature = scenario.temperature;
+            tempValue.textContent = temperature;
+
+            // Update pH slider
+            phSlider.value = scenario.ph;
+            currentPH = scenario.ph;
+            phValue.textContent = currentPH.toFixed(1);
+
+            // Update pH status
+            if (currentPH < 6.5) {
+                phStatus.textContent = 'Acidic';
+                phStatus.style.color = '#ff6b6b';
+            } else if (currentPH > 7.5) {
+                phStatus.textContent = 'Basic';
+                phStatus.style.color = '#a78bfa';
+            } else {
+                phStatus.textContent = 'Neutral';
+                phStatus.style.color = '#10b981';
+            }
+
+            // Update enzyme count
+            enzymeSlider.value = scenario.enzymeCount;
+            enzymeCountEl.textContent = scenario.enzymeCount;
+            updateEnzymeCount(scenario.enzymeCount);
+
+            // Update correct substrates
+            correctSlider.value = scenario.correctSubstrates;
+            correctCountEl.textContent = scenario.correctSubstrates;
+            updateSubstrateCount(true, scenario.correctSubstrates);
+
+            // Update wrong substrates
+            wrongSlider.value = scenario.wrongSubstrates;
+            wrongCountEl.textContent = scenario.wrongSubstrates;
+            updateSubstrateCount(false, scenario.wrongSubstrates);
+
+            // Reset simulation with new parameters
+            resetSimulation();
+
+            // Show description with learning goals
+            const descDiv = document.getElementById('scenarioDescription');
+            const goals = scenario.learningGoals.map(goal => `• ${goal}`).join('<br>');
+            descDiv.innerHTML = `
+                <strong>${scenario.name}</strong><br>
+                ${scenario.description}
+                <div class="learning-goals">
+                    <strong>Learning Goals:</strong><br>${goals}
+                </div>
+            `;
+
+            // Lock parameters for 10 seconds
+            lockScenarioParameters(10);
+
+            console.log(`Loaded scenario: ${scenario.name}`);
+        }
+
+        function lockScenarioParameters(seconds) {
+            scenarioLocked = true;
+
+            // Disable all sliders
+            const sliders = document.querySelectorAll('input[type="range"]');
+            sliders.forEach(slider => {
+                slider.disabled = true;
+                slider.classList.add('scenario-locked');
+            });
+
+            // Show countdown
+            let remaining = seconds;
+            const descDiv = document.getElementById('scenarioDescription');
+            const originalHTML = descDiv.innerHTML;
+
+            const countdownInterval = setInterval(() => {
+                descDiv.innerHTML = originalHTML + `<br><em style="color: #fbbf24;">🔒 Parameters locked: ${remaining}s remaining</em>`;
+                remaining--;
+
+                if (remaining < 0) {
+                    clearInterval(countdownInterval);
+                    unlockScenarioParameters();
+                    descDiv.innerHTML = originalHTML;
+                }
+            }, 1000);
+        }
+
+        function unlockScenarioParameters() {
+            scenarioLocked = false;
+            const sliders = document.querySelectorAll('input[type="range"]');
+            sliders.forEach(slider => {
+                slider.disabled = false;
+                slider.classList.remove('scenario-locked');
+            });
+        }
+
+        // Scenario select event listener
+        const scenarioSelect = document.getElementById('scenarioSelect');
+        scenarioSelect.addEventListener('change', (e) => {
+            const scenarioKey = e.target.value;
+            if (scenarioKey) {
+                loadScenario(scenarioKey);
+            }
+        });
+
+        // Phase 4: Quiz Mode
+        const quizQuestions = {
+            highTemperature: {
+                setup: { temperature: 48, ph: 7.0, enzymeCount: 2, correctSubstrates: 10, wrongSubstrates: 5 },
+                question: "What will happen to the enzymes at 48°C over time?",
+                options: [
+                    { text: "Nothing - enzymes are stable at all temperatures", correct: false },
+                    { text: "Enzymes will denature and stop functioning", correct: true },
+                    { text: "Enzymes will work faster indefinitely", correct: false },
+                    { text: "Only wrong substrates will be affected", correct: false }
+                ],
+                explanation: "At 48°C (above 45°C), enzymes denature after about 5 seconds. High temperature breaks hydrogen bonds in protein structure, causing irreversible loss of function."
+            },
+
+            lowPH: {
+                setup: { temperature: 25, ph: 3.0, enzymeCount: 2, correctSubstrates: 10, wrongSubstrates: 3 },
+                question: "How will pH 3.0 affect the reaction rate?",
+                options: [
+                    { text: "Reaction rate will increase significantly", correct: false },
+                    { text: "Reaction rate will stay the same", correct: false },
+                    { text: "Reaction rate will decrease due to reduced binding success", correct: true },
+                    { text: "Only wrong substrates will be affected", correct: false }
+                ],
+                explanation: "pH 3.0 is highly acidic and far from the optimal pH of 7.0. This disrupts the enzyme's active site, reducing binding success rate. Eventually, enzymes may denature."
+            },
+
+            excessEnzymes: {
+                setup: { temperature: 25, ph: 7.0, enzymeCount: 5, correctSubstrates: 2, wrongSubstrates: 0 },
+                question: "With 5 enzymes and only 2 substrates, what will limit the reaction rate?",
+                options: [
+                    { text: "Enzyme concentration", correct: false },
+                    { text: "Substrate concentration", correct: true },
+                    { text: "Temperature", correct: false },
+                    { text: "Nothing - reaction will be fast", correct: false }
+                ],
+                explanation: "Substrate concentration is the limiting factor. Enzymes compete for limited substrates. This demonstrates substrate-limited kinetics."
+            },
+
+            optimalConditions: {
+                setup: { temperature: 30, ph: 7.0, enzymeCount: 3, correctSubstrates: 15, wrongSubstrates: 1 },
+                question: "How will the reaction rate compare to normal conditions (25°C, pH 7, 1 enzyme, 5 substrates)?",
+                options: [
+                    { text: "Much slower", correct: false },
+                    { text: "About the same", correct: false },
+                    { text: "Significantly faster", correct: true },
+                    { text: "Slightly slower", correct: false }
+                ],
+                explanation: "Optimal temperature (30°C), ideal pH (7.0), more enzymes (3 vs 1), and more substrates (15 vs 5) all contribute to a much higher reaction rate."
+            },
+
+            competition: {
+                setup: { temperature: 25, ph: 7.0, enzymeCount: 1, correctSubstrates: 5, wrongSubstrates: 20 },
+                question: "With many wrong substrates, what will happen to successful bindings?",
+                options: [
+                    { text: "Increase - more collisions overall", correct: false },
+                    { text: "Decrease - wrong substrates interfere", correct: true },
+                    { text: "Stay the same - wrong substrates are ignored", correct: false },
+                    { text: "Stop completely", correct: false }
+                ],
+                explanation: "Wrong substrates cause frequent unsuccessful collisions, reducing the chance of correct substrate-enzyme encounters. This is similar to competitive inhibition."
+            }
+        };
+
+        let quizMode = false;
+        let quizActive = false;
+        let currentQuestion = null;
+        let selectedOption = null;
+        let quizScore = { correct: 0, total: 0 };
+
+        const quizToggle = document.getElementById('quizToggle');
+        const quizModal = document.getElementById('quizModal');
+        const quizScoreDiv = document.getElementById('quizScore');
+        const correctAnswersEl = document.getElementById('correctAnswers');
+        const totalQuestionsEl = document.getElementById('totalQuestions');
+
+        quizToggle.addEventListener('click', () => {
+            quizMode = !quizMode;
+
+            if (quizMode) {
+                quizToggle.textContent = 'Exit Quiz Mode';
+                quizToggle.classList.add('active');
+                quizScoreDiv.style.display = 'block';
+                startQuizQuestion();
+            } else {
+                quizToggle.textContent = 'Start Quiz Mode';
+                quizToggle.classList.remove('active');
+                quizScoreDiv.style.display = 'none';
+                quizModal.style.display = 'none';
+                isRunning = true; // Resume normal operation
+            }
+        });
+
+        function startQuizQuestion() {
+            // Select random question
+            const questionKeys = Object.keys(quizQuestions);
+            const randomKey = questionKeys[Math.floor(Math.random() * questionKeys.length)];
+            currentQuestion = quizQuestions[randomKey];
+
+            // Apply setup parameters
+            applyQuizSetup(currentQuestion.setup);
+
+            // Pause simulation
+            isRunning = false;
+
+            // Show modal with question
+            showQuizQuestion();
+        }
+
+        function applyQuizSetup(setup) {
+            tempSlider.value = setup.temperature;
+            temperature = setup.temperature;
+            tempValue.textContent = temperature;
+
+            phSlider.value = setup.ph;
+            currentPH = setup.ph;
+            phValue.textContent = currentPH.toFixed(1);
+
+            // Update pH status
+            if (currentPH < 6.5) {
+                phStatus.textContent = 'Acidic';
+                phStatus.style.color = '#ff6b6b';
+            } else if (currentPH > 7.5) {
+                phStatus.textContent = 'Basic';
+                phStatus.style.color = '#a78bfa';
+            } else {
+                phStatus.textContent = 'Neutral';
+                phStatus.style.color = '#10b981';
+            }
+
+            updateEnzymeCount(setup.enzymeCount);
+            enzymeSlider.value = setup.enzymeCount;
+            enzymeCountEl.textContent = setup.enzymeCount;
+
+            updateSubstrateCount(true, setup.correctSubstrates);
+            correctSlider.value = setup.correctSubstrates;
+            correctCountEl.textContent = setup.correctSubstrates;
+
+            updateSubstrateCount(false, setup.wrongSubstrates);
+            wrongSlider.value = setup.wrongSubstrates;
+            wrongCountEl.textContent = setup.wrongSubstrates;
+
+            resetSimulation();
+        }
+
+        function showQuizQuestion() {
+            const questionEl = document.getElementById('quizQuestion');
+            const optionsEl = document.getElementById('quizOptions');
+            const feedbackEl = document.getElementById('quizFeedback');
+            const submitBtn = document.getElementById('submitAnswer');
+            const nextBtn = document.getElementById('nextQuestion');
+
+            questionEl.textContent = currentQuestion.question;
+
+            // Clear previous options
+            optionsEl.innerHTML = '';
+            selectedOption = null;
+
+            // Create option buttons
+            currentQuestion.options.forEach((option, index) => {
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'quiz-option';
+                optionDiv.textContent = option.text;
+                optionDiv.dataset.index = index;
+
+                optionDiv.addEventListener('click', () => {
+                    // Deselect all
+                    document.querySelectorAll('.quiz-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+
+                    // Select clicked
+                    optionDiv.classList.add('selected');
+                    selectedOption = index;
+                });
+
+                optionsEl.appendChild(optionDiv);
+            });
+
+            // Reset feedback
+            feedbackEl.style.display = 'none';
+            feedbackEl.className = '';
+            submitBtn.style.display = 'block';
+            nextBtn.style.display = 'none';
+
+            quizModal.style.display = 'flex';
+        }
+
+        document.getElementById('submitAnswer').addEventListener('click', () => {
+            if (selectedOption === null) {
+                alert('Please select an answer');
+                return;
+            }
+
+            // Record baseline statistics
+            const initialProducts = productCount;
+            const initialBindings = successfulBindings;
+
+            // Hide modal and run simulation
+            quizModal.style.display = 'none';
+            isRunning = true;
+
+            // Run simulation for 30 seconds
+            setTimeout(() => {
+                isRunning = false;
+
+                // Calculate results
+                const finalProducts = productCount;
+                const finalBindings = successfulBindings;
+
+                // Evaluate answer
+                evaluateQuizAnswer(selectedOption, initialProducts, finalProducts);
+            }, 30000); // 30 seconds
+        });
+
+        function evaluateQuizAnswer(selectedIndex, initialProducts, finalProducts) {
+            const selectedAnswer = currentQuestion.options[selectedIndex];
+            const isCorrect = selectedAnswer.correct;
+
+            quizScore.total++;
+            if (isCorrect) quizScore.correct++;
+
+            // Update score display
+            correctAnswersEl.textContent = quizScore.correct;
+            totalQuestionsEl.textContent = quizScore.total;
+
+            // Show feedback
+            const feedbackEl = document.getElementById('quizFeedback');
+            const submitBtn = document.getElementById('submitAnswer');
+            const nextBtn = document.getElementById('nextQuestion');
+
+            submitBtn.style.display = 'none';
+            nextBtn.style.display = 'block';
+            feedbackEl.style.display = 'block';
+
+            // Highlight correct/incorrect options
+            document.querySelectorAll('.quiz-option').forEach((opt, index) => {
+                if (currentQuestion.options[index].correct) {
+                    opt.classList.add('correct');
+                } else if (index === selectedIndex && !isCorrect) {
+                    opt.classList.add('incorrect');
+                }
+            });
+
+            if (isCorrect) {
+                feedbackEl.className = 'correct';
+                feedbackEl.innerHTML = `
+                    <strong>✓ Correct!</strong><br>
+                    ${currentQuestion.explanation}<br><br>
+                    <em>During the simulation: ${finalProducts - initialProducts} products were formed.</em>
+                `;
+            } else {
+                feedbackEl.className = 'incorrect';
+                feedbackEl.innerHTML = `
+                    <strong>✗ Incorrect</strong><br>
+                    The correct answer was: "${currentQuestion.options.find(o => o.correct).text}"<br><br>
+                    ${currentQuestion.explanation}<br><br>
+                    <em>During the simulation: ${finalProducts - initialProducts} products were formed.</em>
+                `;
+            }
+
+            quizModal.style.display = 'flex';
+        }
+
+        document.getElementById('nextQuestion').addEventListener('click', () => {
+            quizModal.style.display = 'none';
+            startQuizQuestion();
         });
 
         // Phase 3: Reset button functionality
