@@ -490,6 +490,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Phase 5: TWEEN.js for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     <script>
         // Scene setup
         const scene = new THREE.Scene();
@@ -703,7 +705,10 @@
                 mass: 1,
                 radius: 0.5,
                 isCorrect: isCorrect,
-                state: 'free'
+                state: 'free',
+                // Phase 5: Animation properties
+                isAnimating: false,
+                originalScale: 1.0
             };
 
             return substrate;
@@ -1385,12 +1390,18 @@
             substrates.forEach(substrate => {
                 substrate.state = 'free';
 
+                // Phase 5: Reset animation state
+                substrate.isAnimating = false;
+
                 // Original color
                 if (substrate.isCorrect) {
                     substrate.mesh.material.color.setHex(0x10b981); // Green
                 } else {
                     substrate.mesh.material.color.setHex(0xef4444); // Red
                 }
+
+                // Phase 5: Reset scale
+                substrate.mesh.scale.set(1, 1, 1);
 
                 // Randomize position
                 substrate.mesh.position.set(
@@ -1541,6 +1552,166 @@
             return distance < (body1.radius + body2.radius);
         }
 
+        // Phase 5: FlashEffect class for collision visualization
+        class FlashEffect {
+            constructor(scene) {
+                this.scene = scene;
+                this.pool = [];
+                this.activeFlashes = [];
+                this.maxFlashes = 15;
+
+                // Pre-create flash meshes (object pooling)
+                for (let i = 0; i < this.maxFlashes; i++) {
+                    const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    const material = new THREE.MeshBasicMaterial({
+                        transparent: true,
+                        opacity: 0,
+                        depthWrite: false
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.visible = false;
+                    this.scene.add(mesh);
+                    this.pool.push({ mesh, tween: null });
+                }
+            }
+
+            createFlash(position, color = 0xffffaa, type = 'general') {
+                // Get flash from pool
+                const flash = this.pool.find(f => !f.mesh.visible);
+                if (!flash) return; // Pool exhausted
+
+                // Set position and color
+                flash.mesh.position.copy(position);
+                flash.mesh.material.color.setHex(color);
+                flash.mesh.material.opacity = 1.0;
+                flash.mesh.scale.set(0.5, 0.5, 0.5);
+                flash.mesh.visible = true;
+
+                // Animate expand and fade
+                const scaleAnim = { scale: 0.5, opacity: 1.0 };
+                flash.tween = new TWEEN.Tween(scaleAnim)
+                    .to({ scale: 2.0, opacity: 0 }, 200)
+                    .easing(TWEEN.Easing.Quadratic.Out)
+                    .onUpdate(() => {
+                        flash.mesh.scale.set(scaleAnim.scale, scaleAnim.scale, scaleAnim.scale);
+                        flash.mesh.material.opacity = scaleAnim.opacity;
+                    })
+                    .onComplete(() => {
+                        flash.mesh.visible = false;
+                        flash.tween = null;
+                    })
+                    .start();
+
+                this.activeFlashes.push(flash);
+            }
+
+            update() {
+                // Clean up completed flashes
+                this.activeFlashes = this.activeFlashes.filter(f => f.mesh.visible);
+            }
+
+            dispose() {
+                // Clean up all resources
+                this.pool.forEach(flash => {
+                    this.scene.remove(flash.mesh);
+                    flash.mesh.geometry.dispose();
+                    flash.mesh.material.dispose();
+                });
+            }
+        }
+
+        // Phase 5: Initialize FlashEffect system
+        const flashEffect = new FlashEffect(scene);
+
+        // Phase 5: Binding animation function
+        function animateBinding(substrate, enzyme) {
+            substrate.isAnimating = true;
+
+            // Calculate target position (at active site)
+            const activeSiteWorldPos = new THREE.Vector3();
+            const activeSite = enzyme.mesh.children[0];
+            if (activeSite) {
+                activeSite.getWorldPosition(activeSiteWorldPos);
+            } else {
+                // Fallback if no active site
+                activeSiteWorldPos.copy(enzyme.mesh.position);
+                activeSiteWorldPos.x += 1.8;
+            }
+
+            // Animate position
+            new TWEEN.Tween(substrate.mesh.position)
+                .to({
+                    x: activeSiteWorldPos.x,
+                    y: activeSiteWorldPos.y,
+                    z: activeSiteWorldPos.z
+                }, 500)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .onUpdate(() => {
+                    // Optional: Add slight rotation during approach
+                    substrate.mesh.rotation.y += 0.1;
+                })
+                .onComplete(() => {
+                    substrate.state = 'bound';
+                    substrate.isAnimating = false;
+
+                    // Start product conversion timer
+                    const bindingDuration = 2000 / simulationSpeed;
+                    setTimeout(() => {
+                        if (substrate.state === 'bound') {
+                            convertToProduct(substrate, enzyme);
+                        }
+                    }, bindingDuration);
+                })
+                .start();
+
+            // Animate scale (shrink slightly)
+            new TWEEN.Tween(substrate.mesh.scale)
+                .to({ x: 0.8, y: 0.8, z: 0.8 }, 500)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .start();
+
+            // Animate color to yellow (bound state)
+            const startColor = substrate.mesh.material.color.clone();
+            const endColor = new THREE.Color(0xfbbf24); // Yellow
+            const colorTween = { t: 0 };
+
+            new TWEEN.Tween(colorTween)
+                .to({ t: 1 }, 500)
+                .onUpdate(() => {
+                    substrate.mesh.material.color.lerpColors(startColor, endColor, colorTween.t);
+                })
+                .start();
+
+            // Pulse active site
+            animateActiveSitePulse(enzyme);
+        }
+
+        // Phase 5: Active site pulse animation
+        function animateActiveSitePulse(enzyme) {
+            const activeSite = enzyme.mesh.children[0];
+            if (!activeSite) return;
+
+            const originalIntensity = activeSite.material.emissiveIntensity || 0.3;
+
+            new TWEEN.Tween(activeSite.material)
+                .to({ emissiveIntensity: 1.0 }, 250)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .yoyo(true)
+                .repeat(1)
+                .onComplete(() => {
+                    activeSite.material.emissiveIntensity = 0.8; // Bound state
+                })
+                .start();
+        }
+
+        // Phase 5: Bounce substrate helper
+        function bounceSubstrate(substrate, enzyme) {
+            const direction = new THREE.Vector3()
+                .subVectors(substrate.mesh.position, enzyme.mesh.position)
+                .normalize();
+            substrate.velocity.copy(direction.multiplyScalar(3));
+        }
+
         // Phase 2: Calculate pH activity modifier for enzyme
         // Returns a value between 0 (no activity) and 1 (full activity)
         function getPHActivityModifier(enzyme, currentPH) {
@@ -1665,62 +1836,67 @@
             }
         }
 
+        // Phase 5: Updated handleCollision with animations and flash effects
         function handleCollision(substrate, enzyme) {
+            // Calculate collision point (midpoint)
+            const collisionPoint = new THREE.Vector3()
+                .addVectors(substrate.mesh.position, enzyme.mesh.position)
+                .multiplyScalar(0.5);
+
             collisionCount++;
 
             // Phase 2: Only bind if correct substrate, enzyme available, and NOT denatured
-            if (substrate.isCorrect && !enzyme.isBound && !enzyme.denatured) {
+            if (substrate.isCorrect && !enzyme.isBound && !enzyme.denatured && !substrate.isAnimating) {
                 // Phase 2: Calculate pH-based binding probability
                 const phModifier = getPHActivityModifier(enzyme, currentPH);
 
                 // Random check: binding succeeds based on pH modifier (0-1)
                 if (Math.random() < phModifier) {
-                    // Successful binding
+                    // Successful binding - GREEN flash
+                    flashEffect.createFlash(collisionPoint, 0x10b981, 'success');
+
                     successfulBindings++;
-                    substrate.state = 'bound';
-                    substrate.velocity.set(0, 0, 0);
                     enzyme.isBound = true;
                     enzyme.boundSubstrate = substrate;
+                    substrate.velocity.set(0, 0, 0); // Stop movement
 
-                    substrate.mesh.material.color.setHex(0xfbbf24);
-                    enzyme.activeSite.material.emissiveIntensity = 0.8;
-
-                    // Phase 3: Scale binding duration by simulation speed
-                    const bindingDuration = 2000 / simulationSpeed;
-                    setTimeout(() => {
-                        if (substrate.state === 'bound') {
-                            convertToProduct(substrate, enzyme);
-                        }
-                    }, bindingDuration);
+                    // Phase 5: Start binding animation
+                    animateBinding(substrate, enzyme);
                 } else {
-                    // Phase 2: Failed binding attempt due to unfavorable pH
+                    // Phase 2: Failed binding attempt due to unfavorable pH - RED flash
+                    flashEffect.createFlash(collisionPoint, 0xef4444, 'failed');
+
                     failedBindings++;
-                    const direction = new THREE.Vector3()
-                        .subVectors(substrate.mesh.position, enzyme.mesh.position)
-                        .normalize();
-                    substrate.velocity.copy(direction.multiplyScalar(3));
+                    bounceSubstrate(substrate, enzyme);
                 }
             } else {
-                // Wrong substrate, enzyme busy, or enzyme denatured
-                const direction = new THREE.Vector3()
-                    .subVectors(substrate.mesh.position, enzyme.mesh.position)
-                    .normalize();
-                substrate.velocity.copy(direction.multiplyScalar(3));
+                // Wrong substrate, enzyme busy, or enzyme denatured - YELLOW flash
+                flashEffect.createFlash(collisionPoint, 0xfbbf24, 'general');
+                bounceSubstrate(substrate, enzyme);
             }
         }
 
+        // Phase 5: Updated convertToProduct to reset scale
         function convertToProduct(substrate, enzyme) {
             substrate.state = 'product';
             productCount++;
 
-            substrate.mesh.material.color.setHex(0xa855f7);
+            substrate.mesh.material.color.setHex(0xa855f7); // Purple
+
+            // Phase 5: Reset scale
+            substrate.mesh.scale.set(1, 1, 1);
 
             const releaseDirection = new THREE.Vector3(1, 0.5, 0).normalize();
             substrate.velocity.copy(releaseDirection.multiplyScalar(4));
 
             enzyme.isBound = false;
             enzyme.boundSubstrate = null;
-            enzyme.activeSite.material.emissiveIntensity = 0.3;
+
+            // Reset active site
+            const activeSite = enzyme.mesh.children[0];
+            if (activeSite) {
+                activeSite.material.emissiveIntensity = 0.3;
+            }
         }
 
         // Animation loop
@@ -1733,6 +1909,10 @@
             controls.update();
 
             if (isRunning) {
+                // Phase 5: Update TWEEN animations
+                TWEEN.update();
+                flashEffect.update(); // Update flash effects
+
                 // Phase 3: Define delta time based on speed
                 const baseDeltaTime = 0.016; // ~60 FPS
                 const deltaTime = baseDeltaTime * simulationSpeed;
@@ -1783,6 +1963,11 @@
 
                 // Update substrates
                 substrates.forEach(substrate => {
+                    // Phase 5: Skip physics for animating substrates
+                    if (substrate.isAnimating) {
+                        return;
+                    }
+
                     if (substrate.state === 'free') {
                         applyThermalMotion(substrate, temperature);
                         substrate.velocity.add(world.gravity.clone().multiplyScalar(deltaTime));
@@ -1800,7 +1985,15 @@
                             }
                         });
                     } else if (substrate.state === 'bound') {
-                        // Position managed by enzyme
+                        // Phase 5: Position managed by enzyme or animation
+                        if (!substrate.isAnimating) {
+                            // Find the enzyme this substrate is bound to
+                            const boundEnzyme = enzymes.find(e => e.boundSubstrate === substrate);
+                            if (boundEnzyme) {
+                                const bindPosition = boundEnzyme.mesh.position.clone().add(new THREE.Vector3(1.8, 0, 0));
+                                substrate.mesh.position.copy(bindPosition);
+                            }
+                        }
                     } else if (substrate.state === 'product') {
                         // Products continue moving
                         applyThermalMotion(substrate, temperature);
